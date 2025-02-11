@@ -2,7 +2,7 @@ import http from "http";
 import app from "./index";
 import * as dotenv from "dotenv";
 dotenv.config();
-const port = 3000;
+const port = 8080;
 const server = http.createServer(app);
 
 server.listen(port, () => {

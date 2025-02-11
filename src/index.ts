@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import * as dotenv from "dotenv";
 import mongoose from "mongoose";
+import Routes from "./API/Routes/Router";
 dotenv.config();
 
 const app = express();
@@ -9,6 +10,7 @@ const app = express();
 // MiddleWare
 app.use(express.json());
 app.use(cors());
+app.use("/", Routes)
 
 const db_url = process.env.DB_URL;
 

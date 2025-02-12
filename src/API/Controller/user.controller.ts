@@ -1,11 +1,20 @@
 import { Request, Response, NextFunction } from "express";
-import USER_MODEL from "../Model/user.model";
+// import USER_MODEL from "../Model/user.model";
 import bcrypt from "bcryptjs";
 import errorMessage from "../utils/errorMessage";
 import jwt from "jsonwebtoken";
 import * as dotenv from "dotenv";
+import USER_MODEL from "../Model/user.model";
 
 dotenv.config();
+
+// declare global {
+//   namespace Express {
+//     interface Request {
+//       user?: any;
+//     }
+//   }
+// }
 
 declare global {
   namespace Express {
@@ -18,35 +27,60 @@ declare global {
 const ACCESS_SECRET = process.env.ACCESS_SECRET_KEY;
 const REFRESH_SECRET = process.env.REFRESH_SECRET_KEY;
 
-//TODO if you got this error make sure to add SECRET_KEY inside .env
+// //TODO if you got this error make sure to add SECRET_KEY inside .env
 if (!ACCESS_SECRET || !REFRESH_SECRET) {
   throw new Error("Missing secret keys in .env file");
 }
 
+// const refreshToken = (req: Request, res: Response) => {
+//   const { token } = req.body;
+
+//   if (!token) {
+//     res.status(401).json({ success: false, message: "Refresh token required" });
+//     return;
+//   }
+
+//   try {
+//     const decoded = jwt.verify(token, REFRESH_SECRET) as { userID: string };
+
+//     const newAccessToken = jwt.sign({ userID: decoded.userID }, ACCESS_SECRET, {
+//       expiresIn: "15m",
+//     });
+//     res.json({ accessToken: newAccessToken });
+//   } catch (error) {
+//     res
+//       .status(403)
+//       .json({ success: false, message: "Invalid or expired refresh token" });
+//   }
+// };
+
 const createNewUser = async (req: Request, res: Response) => {
   const { userName, email, password } = req.body;
+
+  if (!userName || !email || !password) {
+    res
+      .status(401)
+      .json({ success: false, message: "missing required inputs" });
+    return;
+  }
+
   try {
     const hashPass = await bcrypt.hash(password, 10);
 
     const user = await USER_MODEL.create({
-      userName,
       email,
+      userName,
       password: hashPass,
     });
 
-    const accessToken = jwt.sign(
-      { userID: user._id, email: user.email },
-      ACCESS_SECRET,
-      { expiresIn: "15m" } // Short lifespan
-    );
-
-    const refreshToken = jwt.sign(
-      { userID: user._id },
-      REFRESH_SECRET,
-      { expiresIn: "7d" } // Longer lifespan
-    );
-
-    res.json({ accessToken, refreshToken });
+    // create token
+    const payload = {
+      userID: user._id,
+      email: user.email,
+      userName: user.userName,
+    };
+    const token = jwt.sign(payload, ACCESS_SECRET, { expiresIn: "1h" });
+    res.status(200).json({ success: true, token });
   } catch (error) {
     errorMessage(error, res);
   }
@@ -55,36 +89,42 @@ const createNewUser = async (req: Request, res: Response) => {
 const loginUser = async (req: Request, res: Response) => {
   const { userNameOrEmail, password } = req.body;
 
+  if (!userNameOrEmail || !password) {
+    res
+      .status(401)
+      .json({ success: false, message: "missing required inputs" });
+    return;
+  }
+
   try {
-    // Find user by username or email
+    // find user
     const user = await USER_MODEL.findOne({
       $or: [{ userName: userNameOrEmail }, { email: userNameOrEmail }],
     });
 
     if (!user) {
-      res.status(404).json({ success: false, message: "User not found" });
+      res.status(401).json({ success: false, message: "unauthorized" });
       return;
     }
 
-    // Compare password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // compare password with the provided one
+    const comparePass = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
-      res.status(401).json({ success: false, message: "Invalid password" });
+    if (!comparePass) {
+      res.status(401).json({ success: false, message: "unauthorized" });
       return;
     }
 
-    const accessToken = jwt.sign(
-      { userID: user._id, email: user.email },
-      ACCESS_SECRET,
-      { expiresIn: "15m" }
-    );
+    // create token
+    const payload = {
+      userID: user._id,
+      email: user.email,
+      userName: user.userName,
+    };
+    const token = jwt.sign(payload, ACCESS_SECRET, { expiresIn: "1h" });
 
-    const refreshToken = jwt.sign({ userID: user._id }, ACCESS_SECRET, {
-      expiresIn: "7d",
-    });
-
-    res.status(200).json({ accessToken, refreshToken });
+    // send response
+    res.status(200).json({ token });
   } catch (error) {
     errorMessage(error, res);
   }
@@ -101,36 +141,17 @@ const authentication = (req: Request, res: Response, next: NextFunction) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as {
-      userID: string;
-      email: string;
-    };
+    const decoded = jwt.verify(token, ACCESS_SECRET);
     req.user = decoded;
     next();
-  } catch (error) {
-    res.status(401).json({ success: false, message: "Invalid token" });
-  }
-};
-
-const refreshToken = (req: Request, res: Response) => {
-  const { token } = req.body;
-
-  if (!token) {
-    res.status(401).json({ success: false, message: "Refresh token required" });
-    return;
-  }
-
-  try {
-    const decoded = jwt.verify(token, REFRESH_SECRET) as { userID: string };
-
-    const newAccessToken = jwt.sign({ userID: decoded.userID }, ACCESS_SECRET, {
-      expiresIn: "15m",
+    res.json({
+      success: true,
+      message: "You have access to this route",
+      user: req.user,
     });
   } catch (error) {
-    res
-      .status(403)
-      .json({ success: false, message: "Invalid or expired refresh token" });
+    errorMessage(error, res);
   }
 };
 
-export { createNewUser, loginUser, authentication, refreshToken };
+export { createNewUser, loginUser, authentication };

@@ -87,9 +87,9 @@ const createNewUser = async (req: Request, res: Response) => {
 };
 
 const loginUser = async (req: Request, res: Response) => {
-  const { userNameOrEmail, password } = req.body;
+  const { userName, password } = req.body;
 
-  if (!userNameOrEmail || !password) {
+  if (!userName || !password) {
     res
       .status(401)
       .json({ success: false, message: "missing required inputs" });
@@ -99,7 +99,7 @@ const loginUser = async (req: Request, res: Response) => {
   try {
     // find user
     const user = await USER_MODEL.findOne({
-      $or: [{ userName: userNameOrEmail }, { email: userNameOrEmail }],
+      $or: [{ userName: userName }, { email: userName }],
     });
 
     if (!user) {

@@ -33,4 +33,38 @@ const getAllTransactions = async (req: Request, res: Response) => {
   }
 };
 
-export { createNewTransaction, getAllTransactions };
+const transactionSummary = async (req: Request, res: Response) => {
+  try {
+    const result = await TRANSACTION_MODEL.aggregate([
+      {
+        $group: {
+          _id: "$category",
+          totalSum: { $sum: "$sum" },
+        },
+      },
+    ]);
+
+    let income = 0,
+      expenses = 0;
+
+    result.forEach((item) => {
+      if (item._id === "income") {
+        income = item.totalSum;
+      } else {
+        expenses += item.totalSum;
+      }
+    });
+
+    const balance = income - expenses;
+    const savings = balance;
+
+    res.status(200).json({
+      success: true,
+      transactionSummary: { income, expenses, balance, savings },
+    });
+  } catch (error) {
+    errorMessage(error, res);
+  }
+};
+
+export { createNewTransaction, getAllTransactions, transactionSummary };

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import TRANSACTION_MODEL from "../Model/transaction.model";
 import errorMessage from "../utils/errorMessage";
 
-const createNewTransaction = (req: Request, res: Response) => {
+const createNewTransaction = async (req: Request, res: Response) => {
   const { name, category, wallet, sum } = req.body;
 
   if (!name || !category || !wallet || !sum) {
@@ -12,7 +12,7 @@ const createNewTransaction = (req: Request, res: Response) => {
     return;
   }
   try {
-    const newTransaction = TRANSACTION_MODEL.create({
+    const newTransaction = await TRANSACTION_MODEL.create({
       name,
       category,
       wallet,
@@ -24,4 +24,13 @@ const createNewTransaction = (req: Request, res: Response) => {
   }
 };
 
-export { createNewTransaction };
+const getAllTransactions = async (req: Request, res: Response) => {
+  try {
+    const transactions = await TRANSACTION_MODEL.find({}).sort({ date: -1 });
+    res.status(200).json({ success: true, transactions });
+  } catch (error) {
+    errorMessage(error, res);
+  }
+};
+
+export { createNewTransaction, getAllTransactions };
